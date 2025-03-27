@@ -1,7 +1,7 @@
 ---
 title: "KD processed data analysis"
 author: "EZ"
-date-modified: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+date-modified: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`" 
 format: 
   html:
     html-math-method: katex
