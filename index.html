@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.6.42">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -64,12 +64,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="documentation2_files/libs/quarto-html/tippy.umd.min.js"></script>
 <script src="documentation2_files/libs/quarto-html/anchor.min.js"></script>
 <link href="documentation2_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="documentation2_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="documentation2_files/libs/quarto-html/quarto-syntax-highlighting-dark.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="documentation2_files/libs/quarto-html/quarto-syntax-highlighting-8e00f2f28a1266a720913de837032221.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="documentation2_files/libs/quarto-html/quarto-syntax-highlighting-dark-8e00f2f28a1266a720913de837032221.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="documentation2_files/libs/bootstrap/bootstrap.min.js"></script>
 <link href="documentation2_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="documentation2_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="documentation2_files/libs/bootstrap/bootstrap-dark.min.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="documentation2_files/libs/bootstrap/bootstrap-3b6f4a408c65b89e8b3c78be52a963c6.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="documentation2_files/libs/bootstrap/bootstrap-dark-f9947c85d27fcb1bdec08e38c736ff7b.min.css" rel="prefetch" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
 <script src="documentation2_files/libs/kePrint-0.0.1/kePrint.js"></script>
 
 <link href="documentation2_files/libs/lightable-0.0.1/lightable.css" rel="stylesheet">
@@ -167,7 +167,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Modified</div>
     <div class="quarto-title-meta-contents">
-      <p class="date-modified">March 24, 2025</p>
+      <p class="date-modified">Invalid Date</p>
     </div>
   </div>
     
@@ -4415,6 +4415,15 @@ window.Quarto = {
 
 </div>
 </div>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="documentation2_files/figure-html/barplot%20classes-1.svg" style="width:100.0%;height:100.0%" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
 <p><img src="bacteria%20classes.svg" class="img-fluid" style="width:18.6cm"></p>
 <p>It seems as if the sum of classes doesn’t add up to 100 (after checking their table, yes it doesn’t). I am assuming this is because they delete unassigned ASVs/OTUs on each taxonomic rank.</p>
 </section>
@@ -4739,8 +4748,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   });
   clipboard.on('success', onCopySuccess);
   if (window.document.getElementById('quarto-embedded-source-code-modal')) {
-    // For code content inside modals, clipBoardJS needs to be initialized with a container option
-    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
     const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
       text: getTextToCopy,
       container: window.document.getElementById('quarto-embedded-source-code-modal')
@@ -4851,7 +4858,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       if (window.Quarto?.typesetMath) {
         window.Quarto.typesetMath(note);
       }
-      // TODO in 1.5, we should make sure this works without a callout special case
       if (note.classList.contains("callout")) {
         return note.outerHTML;
       } else {

@@ -314,7 +314,7 @@ kbl(class2 %>%
 #| echo: false
 #| warning: false
 #| results: false
-#| output: false
+#| output: True
 #| out-height: 100%
 #| out-width: 100%
 #| dev: svg
