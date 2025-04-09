@@ -26,7 +26,7 @@ editor: visual
 
 This document compiles possible data visualizations made using processed data received from Soilytex.
 
-## 16S rRNA gene
+## Bacteria diversity
 
 The 16S rRNA gene has been a mainstay of sequence-based bacterial analysis for decades. The \~1500 bp 16S rRNA gene comprises nine variable regions throughout the highly conserved 16S sequence. I do not have the information if soilytix uses 3^d^ generation sequencing (*i.e* long read for full 16S) which would lead to the best taxonomic resolution ([Johnson et al. 2019](https://rdcu.be/edQHU)).
 
@@ -42,17 +42,20 @@ I am assuming that relative abundances are expressed in percentages per Sample-I
 #| results: hide
 #| warning: false
 
-library("tidyverse")
 library("kableExtra")
+library("readxl")
+library("Hmisc")
+library("tidyverse")
 
-map <- read_tsv("data/mapfile2.txt") %>% 
-  mutate(Sample_ID = as.factor(Sample_ID))
+map <- read_excel("data/Book4.xlsx", 
+                  sheet = "maps") %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID))
 
 species <- read_csv2("data/16S_Abundance_Species.csv") %>% 
-  mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
   pivot_longer(!Sample_ID, names_to = "bacteria_species", values_to = "RA_bacteria") %>% 
   left_join(y = map, by = "Sample_ID" ) %>% 
-  mutate_if(is.character,as.factor) %>% 
+  dplyr::mutate_if(is.character,as.factor) %>% 
   arrange(desc(RA_bacteria))
 
 
@@ -73,23 +76,31 @@ kbl(species[1:300,]) %>%
 
 there are 321 identified bacteria species. the maximum relative abundance calculated is \~9% whereas the median is 0 and the mean is \~1%.
 
+##### Time series T4, T6 and T7
+
 Here, I will focus on the top 5 identified species per sample
 
 ```{r}
-#| label: Top 5 identified bacteria species per sample
+#| label: Top 5 identified bacteria species per sample for timeseries
 #| results: hide
 #| warning: false
 
 top5 <- species %>% 
   group_by(Sample_ID) %>% 
+  filter(pile %in% c("T4", "T6", "T7")) %>% 
   slice_max(order_by = RA_bacteria, n = 5) %>% 
   ungroup() %>% 
-  arrange(desc(RA_bacteria)) %>% 
-  drop_na() %>% 
-  mutate(Miete = fct_relevel(Miete, c("T1", "T4", "T6", "T7", "T8", "T9","T10", "T11")))
+  arrange(desc(RA_bacteria)) 
+ # %>%  dplyr::mutate(pile = fct_relevel(pile, c("T1", "T4", "T6", 
+ #                                    "T7", "T8", "T9","T10", "T11")))
 
 top5_bact <- unique(top5$bacteria_species)
+
 length(top5_bact)
+
+top5 <- species %>% 
+  filter(bacteria_species %in% top5_bact) %>% 
+  filter(!is.na(pile))
 ```
 
 There are 41 different species that across the top 5 identified species per sample. The median relative abundance is \~0.8 %. When eliminating NA values, we're left with 35 species.
@@ -132,45 +143,60 @@ grad <- function(x) colorRampPalette(c(gradient_base,x))(200)
 # plot --------------------------------------------------------------------
 
 p <- ggplot(data = top5,
-                  mapping = aes( x = Zeit_Monate,
+                  mapping = aes( x = time_months,
                                  y= bacteria_species,
                                  fill = RA_bacteria)) +
   geom_tile() +
-  scale_fill_gradientn(name = "relative abundance bacteria (%)",colours =c("#f2edee","orange", "#380282") ,
+  scale_fill_gradientn(name = "relative abundance bacteria (%)",
+                       colours =c("#f2edee","orange", "#380282") ,
                        na.value = "grey55",
-                       values = rescale(x = c(0, 2.5, 10), from = c(0, 10)),limits=c(0,10))+ 
-  facet_grid2(~ Miete ,
+                       values = rescale(x = c(0, 2.5, 10), 
+                                        from = c(0, 10)),
+                       limits=c(0,10))+ 
+  facet_grid2(~ pile ,
              labeller = label_wrap_gen(multi_line = TRUE),
              switch = "y",
              space = "free",
              scales = "free") +
   # xlab(label = "time (months)") +
-  labs(
-    caption = "Heatmap top 5 specie with Zeit - Miete interaction"
+  labs(title = "Heatmap top 5 species in T4, T6 and T7 through time"
   )+
   theme_minimal() +
   theme(strip.placement = "outside",
         plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank(),
-        axis.text.y = element_text(size = 8, face = "bold.italic"),
-        axis.text.x = element_text(size = 10, face = "bold", hjust = 0, vjust= 0.5, angle = 90),
+        axis.text.y = element_text(size = 8, 
+                                   face = "bold.italic"),
+        axis.text.x = element_text(size = 10, 
+                                   face = "bold", 
+                                   hjust = 0, 
+                                   vjust= 0.5, 
+                                   angle = 90),
         axis.title.x = element_blank(),
         strip.background = element_blank(),
-        strip.text.y.left = element_text(size= 7, face = "bold", angle = 0),
+        strip.text.y.left = element_text(size= 7, 
+                                         face = "bold", 
+                                         angle = 0),
         strip.background.x = element_rect (colour = c("#890100"),
                                           linetype = 1,
                                           linewidth = 1),
         # ggh4x.facet.nestline = element_line(colour = c("#380282")),
-        strip.text.x = element_text(size= 8, face = "bold"),
+        strip.text.x = element_text(size= 8, 
+                                    face = "bold"),
         legend.title = element_text(face = "bold", 
                                     size = 8,
                                     margin = margin(r = 10)),
         legend.text = element_text(size = 8),
-        legend.position = "bottom" ) +
-  guides(fill = guide_colorbar(barwidth = 20, barheight = 0.8, title.vjust = 1))
+        legend.position = "bottom" ,
+        plot.title.position = "plot") +
+  guides(fill = guide_colorbar(barwidth = 20, 
+                               barheight = 0.8, 
+                               title.vjust = 1))
 p                                      
 
 ```
+
+The following plot shows the same information but in a way that might make it easier to decipher diffrences between time points whilst the previous plot makes it easier to
 
 ```{r}
 #| label: heatmap species2
@@ -202,23 +228,24 @@ grad <- function(x) colorRampPalette(c(gradient_base,x))(200)
 # plot --------------------------------------------------------------------
 
 p <- ggplot(data = top5,
-                  mapping = aes( x = Sample_ID,
+                  mapping = aes( x = pile,
                                  y= bacteria_species,
                                  fill = RA_bacteria)) +
   geom_tile() +
-  scale_fill_gradientn(name = "relative abundance bacteria (%)",colours =c("#f2edee","orange", "#380282") ,
+  scale_fill_gradientn(name = "relative abundance bacteria (%)",
+                       colours =c("#f2edee","orange", "#380282") ,
                        na.value = "grey55",
-                       values = rescale(x = c(0, 2.5, 10), from = c(0, 10)),limits=c(0,10))+ 
-  facet_grid2(~ Zeit_Monate ,
+                       values = rescale(x = c(0, 2.5, 10), 
+                                        from = c(0, 10)),
+                       limits=c(0,10))+ 
+  facet_grid2(~ time_months ,
              labeller = label_wrap_gen(multi_line = TRUE),
              switch = "y",
              space = "free",
              scales = "free") +
   # xlab(label = "time (months)") +
   theme_minimal() +
-  labs(
-    caption = "Heatmap top 5 species through time"
-  )+
+  labs(title = "Heatmap top 5 species in T4, T6 and T7 through time")+
   theme(strip.placement = "outside",
         plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank(),
@@ -242,9 +269,208 @@ p <- ggplot(data = top5,
                                     size = 8,
                                     margin = margin(r = 10)),
         legend.text = element_text(size = 8),
-        legend.position = "bottom" ) +
-  guides(fill = guide_colorbar(barwidth = 20, barheight = 0.8, title.vjust = 1))
+        legend.position = "bottom",
+        plot.title.position = "plot") +
+  guides(fill = guide_colorbar(barwidth = 20, 
+                               barheight = 0.8, 
+                               title.vjust = 1))
+
+
 p                                      
+
+```
+
+Let's focus on month 6 since all types of compost were sampled then.
+
+```{r}
+#| label: Top 10 identified bacteria species at month 6 
+#| results: hide 
+#| warning: false  
+
+top10 <- species %>%    
+  group_by(Sample_ID) %>%    
+  filter(time_months %in% c("6M")) %>%    
+  slice_max(order_by = RA_bacteria, n = 10) %>%    
+  ungroup() %>%   
+  arrange(desc(RA_bacteria)) %>%    
+  dplyr::mutate(pile = fct_relevel(pile, 
+                            c( "T4", "T6","T7", "T1",
+                               "T9","T8","T10", "T11")))  
+top10_bact <- unique(top10$bacteria_species) 
+length(top10_bact)
+
+top10 <- species %>% 
+  filter(!is.na(pile)) %>% 
+  filter(bacteria_species %in% top10_bact)
+
+median(top10$RA_bacteria)
+```
+
+```{r}
+#| label: heatmap species month 6
+#| echo: false
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+
+
+library("scales")
+library("RColorBrewer")
+library("ggtext")
+library("glue")
+library("ggpubr")
+library("ggh4x")
+
+# color -------------------------------------------------------------------
+gradient_base <- c("#f2edee")
+
+grad <- function(x) colorRampPalette(c(gradient_base,x))(200)
+
+# grad(c("#380282"))
+
+
+# plot --------------------------------------------------------------------
+
+p <- ggplot(data = top10,
+                  mapping = aes( x = pile,
+                                 y= bacteria_species,
+                                 fill = RA_bacteria)) +
+  geom_tile() +
+  scale_fill_gradientn(name = "relative abundance bacteria (%)",
+                       colours =c("#f2edee","orange", "#380282") ,
+                       na.value = "grey55",
+                       values = rescale(x = c(0, 2.5, 10), 
+                                        from = c(0, 10)),
+                       limits=c(0,10))+ 
+  theme_minimal() +
+  labs(title = "Heatmap top 10 species in T4, T6 and T7 through time")+
+  theme(strip.placement = "outside",
+        plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size = 8, 
+                                   face = "bold.italic"),
+        axis.text.x = element_text(size = 10, 
+                                   face = "bold", 
+                                   hjust = 0, 
+                                   vjust= 0.5, 
+                                   angle = 90),
+        axis.title.x = element_blank(),
+        strip.background = element_blank(),
+        strip.text.y.left = element_text(size= 7, 
+                                         face = "bold", angle = 0),
+        strip.background.x = element_rect (colour = c("#890100"),
+                                          linetype = 1,
+                                          linewidth = 1),
+        # ggh4x.facet.nestline = element_line(colour = c("#380282")),
+        strip.text.x = element_text(size= 8, face = "bold"),
+        legend.title = element_text(face = "bold", 
+                                    size = 8,
+                                    margin = margin(r = 10)),
+        legend.text = element_text(size = 8),
+        legend.position = "bottom" ,
+        plot.title.position = "plot") +
+  guides(fill = guide_colorbar(barwidth = 20, 
+                               barheight = 0.8, 
+                               title.vjust = 1))
+
+
+p     
+```
+
+##### New production samples:
+
+```{r}
+#| label: Top 10 identified bacteria species in T1 & T9
+#| results: hide
+#| warning: false
+#| echo: false
+
+top10 <- species %>% 
+  group_by(Sample_ID) %>% 
+  filter(pile %in% c("T1", "T9")) %>% 
+  slice_max(order_by = RA_bacteria, n = 10) %>% 
+  ungroup() %>% 
+  arrange(desc(RA_bacteria)) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, c("T1","T9")))
+
+top10_bact <- unique(top10$bacteria_species)
+length(top10_bact)
+
+top10 <- species %>% 
+  filter(bacteria_species %in% top10_bact) %>% 
+  filter(pile %in% c("T1", "T9")) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, c("T1","T9")))%>%
+  arrange(desc(RA_bacteria))  
+  
+  
+```
+
+```{r}
+#| label: barplot species T1 & T9
+#| echo: false
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+
+plot <-ggplot(top10, 
+              aes(x= fct_reorder(bacteria_species, RA_bacteria),
+                  y= RA_bacteria,
+                  fill= Sample_ID))+
+  geom_bar(stat="identity", 
+           position= "dodge") +
+  scale_fill_manual("Sample",values= c( "#8a1c12", "#53c6ef","#48bf8e"))+
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()+
+  labs(title = "Top 10 bacterial species in pile 1 and pile 9")+
+  ylab("Relative Abundance (%)")+
+  xlab("bacteria species")+
+  theme(plot.title.position = "plot",
+        legend.position = c(0.8, 0.2),
+        legend.title = element_text(face = "bold"),
+        axis.title.y = element_text(size= 12,
+                                    face = "bold"),
+        axis.text.y = element_text(size = 10, 
+                                   face = "bold.italic"),
+        axis.text.x = element_text(size = 10,
+                                   face = "bold",
+                                   hjust = 0.5, 
+                                   vjust= 0.5,
+                                   margin = margin(t = 1)),
+        axis.title.x = element_text(size= 12,
+                                    face = "bold",
+                                      margin(t = 8)),
+        panel.grid.major = element_line(colour = NA),
+        panel.grid.minor = element_line(colour = NA))+ 
+  coord_flip()
+
+plot
+```
+
+```{r}
+#| label: ordination species
+#| echo: false
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+ species <- dplyr::mutate(species,
+                          abundance = round(RA_bacteria*Richness_16s))
+ 
+ s_tab <- species %>% 
+   select(bacteria_species, Sample_ID, abundance) %>% 
+   pivot_wider(names_from = Sample_ID,
+               values_from = abundance)
 
 ```
 
@@ -260,23 +486,23 @@ We can also visualize the relative abundance of the most abundant classes.
 library("Hmisc")
 
 class <- read_csv2("data/16S_Abundance_class.csv") %>% 
-  mutate(Sample_ID = as.factor(Sample_ID)) %>% 
-  mutate_if(is.character, as.factor) %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+  dplyr::mutate_if(is.character, as.factor) %>% 
   pivot_longer(!Sample_ID, names_to = "bacteria_class", values_to = "RA_bacteria") %>% 
   left_join(y = map, by = "Sample_ID" ) %>% 
-  arrange(desc(RA_bacteria))
+  arrange(desc(RA_bacteria)) %>% 
+  filter(!is.na(pile))
   # drop_na() %>%
-  # mutate(Miete = fct_relevel(Miete, c("T1", "T4", "T6", "T7", "T8", "T9","T10", "T11")))
-
-class$Miete <- NULL
+  # dplyr::mutate(pile = fct_relevel(pile, c("T1", "T4", "T6", "T7", "T8", "T9","T10", "T11")))
 
 classes_to_keep <- unique((class %>% filter(RA_bacteria>5))$bacteria_class)
 
-
 class2 <- class %>%
-  mutate(bacteria_class, 
-         bacteria_class = if_else(bacteria_class %nin% classes_to_keep, str_c("Others <5%"), bacteria_class)) %>%
-  mutate_if(is.character, as.factor) %>% 
+  dplyr::mutate(bacteria_class, 
+         bacteria_class = if_else(bacteria_class %nin% classes_to_keep, 
+                                  str_c("Others <5%"), 
+                                  bacteria_class)) %>%
+  dplyr::mutate_if(is.character, as.factor) %>% 
   distinct() 
 
 # the multiple copies of classes that are now labelled "Others <5%" produce a distorted effect when plotting
@@ -284,12 +510,14 @@ class2 <- class %>%
 # entries by a single one
 
 c_sum <- class2 %>% 
+  filter(!is.na(pile)) %>% 
   filter(bacteria_class %in% "Others <5%") %>%
   group_by(Sample_ID) %>%
-  mutate(RA_bacteria= sum(RA_bacteria)) %>%
+  dplyr::mutate(RA_bacteria= sum(RA_bacteria)) %>%
   distinct() 
 
 class2 <- class2 %>% 
+  filter(!is.na(pile)) %>% 
   filter(bacteria_class %nin% "Others <5%") %>%
   bind_rows(c_sum)
 ```
@@ -301,7 +529,7 @@ There are 13 classes with relative abundances \>5% summarized in the table below
 #| echo: false
 #| label: table top classes bacteria
 kbl(class2 %>% 
-      mutate(
+      dplyr::mutate(
         RA_bacteria = round(RA_bacteria, digits = 1)
         )
     ) %>%
@@ -322,7 +550,7 @@ kbl(class2 %>%
 ct <- c( "#399283", "#84eb86", "#3e2690", "#7ce5e6", "#173d61", "#b4b7d4", "#71114b", "#59a20c", "#dd3dca", "#18441b", "#fbacf6", "#5577b2", "#c9dd87", "#5a66f9")
 
 plot <-ggplot(class2, 
-              aes(x= Sample_ID,
+              aes(x= pile,
                   y= RA_bacteria,
                   group = Sample_ID,
                   fill=fct_reorder(bacteria_class, RA_bacteria)))+
@@ -334,7 +562,7 @@ plot <-ggplot(class2,
   theme_minimal()+
   labs(fill = "Class Bacteria")+
   ylab("Relative Abundance (%)")+
-  facet_grid2 (~Zeit_Monate,
+  facet_grid2 (~time_months,
                scales="free_x",
                space = "free_x")+
   theme(strip.text.x = element_text(size = 12, 
@@ -355,6 +583,7 @@ plot <-ggplot(class2,
                                    face = "bold"),
         axis.text.x = element_text(size = 10, 
                                    face = "bold",
+                                   angle = 90,
                                    hjust = 0.5, 
                                    vjust= 0.5,
                                    margin = margin(t = 1)),
@@ -369,8 +598,6 @@ plot <-ggplot(class2,
 plot
 
 ```
-
-![](bacteria%20classes.svg){width="18.6cm"}
 
 It seems as if the sum of classes doesn't add up to 100 (after checking their table, yes it doesn't). I am assuming this is because they delete unassigned ASVs/OTUs on each taxonomic rank.
 
@@ -391,16 +618,16 @@ The higher the value of H, the higher the diversity of species in a particular c
 
 
 alpha_div <- read.csv2("data/alpha_div.csv") %>% 
-  mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
   left_join(y = map, by = "Sample_ID" ) %>% 
-  mutate_if(is.character, as.factor) 
+  dplyr::mutate_if(is.character, as.factor) %>% 
+  filter(!is.na(pile)) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, 
+                            c( "T4", "T6","T7", "T1",
+                               "T9","T8","T10", "T11")))
 
 
-alpha_div$Miete <- NULL
-
-alpha_div <- drop_na(alpha_div)
-
-combo <- combn(levels(alpha_div$Zeit_Monate), 2)
+combo <- combn(levels(alpha_div$time_months), 2)
 
 my_comparisons <- as.data.frame(combo) %>%
   sapply( function(x) as.character(x), simplify = FALSE)
@@ -419,11 +646,12 @@ high <- function(x){mean(x)+sd(x)}
 #| output: false
 #| warning: false
 #| dev: svg
+library(ggrepel)
 
 p_shannon1 <- ggplot(data = alpha_div , 
-                    aes (x = Zeit_Monate,
-                         group = Zeit_Monate,
-                         color = Zeit_Monate,
+                    aes (x = pile,
+                         group = pile,
+                         color = pile,
                          label = Sample_ID,
                          y= Shannon)) +
   
@@ -438,8 +666,9 @@ p_shannon1 <- ggplot(data = alpha_div ,
                size=1, 
                shape= 4)+
   
-  scale_color_manual(values = c("#72e5ef", "#fd1e6e", "#7191ce", "#79eb99", "#9c6f08", "#ddb35b", "#513886"),
-                     name = "Zeit")+
+   scale_color_manual(values = c("#dac925", "#93311c", "#84bc04", "#554bca", "#fca552", "purple3", "#3dd188", "#c41c8d"),
+                     name = "pile")+
+  
   
   # facet_wrap(~location)+
   
@@ -463,40 +692,36 @@ p_shannon1 <- ggplot(data = alpha_div ,
         strip.background = element_blank(),
         strip.text = element_text(size = 12, 
                                   face = "bold"))+
-  stat_compare_means(comparisons = my_comparisons,
-                     method = "wilcox.test",
-                     aes(label = after_stat(p.signif))) # Add pairwise comparisons p-value
-  # stat_compare_means(method = "kruskal.test",
-  #                    label.y = 11 , label.x = 1) + 
-  # guides(
-  # color = guide_legend(
-  #   label.position = "top",
-  #   override.aes = list(shape = 20, size = 1)
-  # ))
+  # stat_compare_means(comparisons = my_comparisons,
+  #                    method = "wilcox.test",
+  #                    aes(label = after_stat(p.signif))) # Add pairwise comparisons p-value
+  stat_compare_means(method = "kruskal.test",
+                     label.y = 11 , label.x = 2) +
+  guides(
+  color = guide_legend(
+    label.position = "top",
+    override.aes = list(shape = 20, size = 1)
+  ))
 
 # p_shannon1
 
 
 p_shannon2 <- ggplot(data = alpha_div , 
-                    aes (x = Zeit_Monate,
-                         group = Zeit_Monate,
-                         color = Zeit_Monate,
+                    aes (x = time_months,
+                         group = time_months,
                          label = Sample_ID,
                          y= Shannon)) +
   
   geom_point(size= 2, key_glyph = "rect")+
-  geom_text(check_overlap = T, 
-            size = 4,
-            nudge_x = .2,
-            hjust = 0) +
+  geom_text_repel() +
   stat_summary(fun="mean", 
                fun.min = low, 
                fun.max = high ,
                size=1, 
                shape= 4)+
-  
-  scale_color_manual(values = c("#72e5ef", "#fd1e6e", "#7191ce", "#79eb99", "#9c6f08", "#ddb35b", "#513886"),
-                     name = "Zeit")+
+  # scale_color_manual(values = c("#72e5ef", "#f1615f", "#913a98", "#4b7359", "#a6e590", "#505b8f", "#c79542"),
+  #                    name = "time")+
+  # 
   
   # facet_wrap(~location)+
   
@@ -532,9 +757,9 @@ p_shannon2 <- ggplot(data = alpha_div ,
     override.aes = list(shape = 20, size = 1)
   ))
 
-# p_shannon2
+p_shannon2
 
-
+#
 ```
 
 ```{r}
@@ -550,7 +775,7 @@ p_shannon2 <- ggplot(data = alpha_div ,
 
 
 # ggpubr::compare_means(data = alpha_div,
-#                       formula = Shannon ~ Zeit_Monate,
+#                       formula = Shannon ~ time_months,
 #                       method = "kruskal.test",
 #                       p.adjust.method = "BH",
 #                       paired = T)
@@ -563,7 +788,7 @@ pl <-
                   ncol = 2,
                   labels = c("A)", "B)")
                   )
-cap <- expression("Shannon diversity index values. \nThe samples are grouped by time the X marks the mean. The line represents the standard deviation. \nIn A) a pairwise comparison via Wilcoxon test is represented. \nIn B) only a global Kruskall-Wallis test is displayed. \nns = not significant")
+cap <- expression("Shannon diversity index values. \nThe samples are grouped by time the X marks the mean. \nThe line represents the standard deviation. \nIn A) a pairwise comparison via Wilcoxon test is represented. \nIn B) only a global Kruskall-Wallis test is displayed. \nns = not significant")
 
 annotate_figure(
         annotate_figure(pl,
@@ -584,29 +809,38 @@ So, if I just plot what's in the file that's what I would get.
 #| echo: false
 #| output: True
 #| warning: false
-#| out-width: 90%
-#| out-height: 90%
+#| out-width: 80%
+#| out-height: 80%
 #| dev: svg
 
+library(ggrepel)
+
 beta <- read_csv2("data/beta_div_16s.csv") %>% 
-  mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
   left_join(y = map, by = "Sample_ID" ) %>% 
-  mutate_if(is.character, as.factor) 
-beta$Miete <- NULL
+  dplyr::mutate_if(is.character, as.factor) %>% 
+  filter(!is.na(pile)) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, 
+                            c( "T4", "T6","T7", "T1",
+                               "T9","T8","T10", "T11")))
+
 
 col24 <- c("#52ef99", "#860967", "#b3e61c", "#1932bf", "#c7dd91", "#dc35dc", "#0ca82e", "#fe1d66", "#51f310", "#e68dd9", "#0c5f31", "#f17a74", "#41c9dc", "#a63838", "#2480a1", "#fe5900", "#523d6e", "#fabd2a", "#6524ff", "#7b9b47", "#846dff", "#f4bb8f", "#653d28", "#afc6fe")
 
+col8 <- c("#aee39a", "#806641","#1c35b7", "#93311c", "#dbbbec",  "#f5a952", "#3a78c3", "#dac925")
 
-beta2 <- drop_na(beta)
+coll <- c("#dac925", "#93311c", "#84bc04", "#554bca", "#fca552", "purple3", "#3dd188", "#c41c8d")
 
-b <- ggplot(data = beta2,
+b <- ggplot(data = beta,
             aes(x = PCo1,
                 y = PCo2,
-                shape = Zeit_Monate,
-                colour = Sample_ID))+
+                shape = time_months,
+                colour = pile,
+                label = Sample_ID))+
   geom_point(size = 3)+
-  scale_color_manual(values = col24)+
-  scale_shape_manual(values= c(18,17,7,4,16,3,8))+
+  geom_text_repel(show.legend = F) +
+  scale_color_manual(values = coll)+
+  scale_shape_manual(values= rev(c(18,17,7,4,16,3,8)))+
   theme_classic()+
   theme(axis.title.y = element_text(size = 12, 
                                     margin =margin(t=0,r=8,b=0,l=0)),
@@ -629,6 +863,16 @@ b <- ggplot(data = beta2,
 
 
 b
+
 ```
 
 Usually axis 1 / axis x or PCo1 is the dimension that explains the most variance in the dataset even if it is unknown exactly here. What we can see mostly here is that the microbial community is discriminated by the variable time mostly. on that axis from right to left, one can follow a progression mainly in the 3 first months. after that, the influence of time seems to diminish. I don't have enough knowledge about the samples to be able to guess what might be the variables behind the scatter of the samples.
+
+### Possible Functions
+
+```{r}
+#| label: function table
+#| echo: false
+#| results: hide
+#| warning: false
+```
