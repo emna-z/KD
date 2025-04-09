@@ -100,7 +100,9 @@ length(top5_bact)
 
 top5 <- species %>% 
   filter(bacteria_species %in% top5_bact) %>% 
-  filter(!is.na(pile))
+  filter(!is.na(pile)) %>% 
+  filter(pile %in% c("T4", "T6", "T7")) %>% 
+  arrange(desc(RA_bacteria)) 
 ```
 
 There are 41 different species that across the top 5 identified species per sample. The median relative abundance is \~0.8 %. When eliminating NA values, we're left with 35 species.
@@ -301,7 +303,13 @@ length(top10_bact)
 
 top10 <- species %>% 
   filter(!is.na(pile)) %>% 
-  filter(bacteria_species %in% top10_bact)
+  filter(bacteria_species %in% top10_bact) %>% 
+  filter(time_months %in% c("6M")) %>%
+  arrange(desc(RA_bacteria)) %>%    
+  dplyr::mutate(pile = fct_relevel(pile, 
+                            c( "T4", "T6","T7", "T1",
+                               "T9","T8","T10", "T11"))) 
+
 
 median(top10$RA_bacteria)
 ```
@@ -347,7 +355,7 @@ p <- ggplot(data = top10,
                                         from = c(0, 10)),
                        limits=c(0,10))+ 
   theme_minimal() +
-  labs(title = "Heatmap top 10 species in T4, T6 and T7 through time")+
+  labs(title = "Heatmap top 10 species at month 6")+
   theme(strip.placement = "outside",
         plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank(),
@@ -488,7 +496,9 @@ library("Hmisc")
 class <- read_csv2("data/16S_Abundance_class.csv") %>% 
   dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
   dplyr::mutate_if(is.character, as.factor) %>% 
-  pivot_longer(!Sample_ID, names_to = "bacteria_class", values_to = "RA_bacteria") %>% 
+  pivot_longer(!Sample_ID, 
+               names_to = "bacteria_class", 
+               values_to = "RA_bacteria") %>% 
   left_join(y = map, by = "Sample_ID" ) %>% 
   arrange(desc(RA_bacteria)) %>% 
   filter(!is.na(pile))
@@ -547,7 +557,7 @@ kbl(class2 %>%
 #| out-width: 100%
 #| dev: svg
 
-ct <- c( "#399283", "#84eb86", "#3e2690", "#7ce5e6", "#173d61", "#b4b7d4", "#71114b", "#59a20c", "#dd3dca", "#18441b", "#fbacf6", "#5577b2", "#c9dd87", "#5a66f9")
+ct <- c( "#7ce5e6", "#84eb86", "#3e2690","#399283",  "#173d61", "#b4b7d4", "#71114b", "#59a20c", "#dd3dca", "#18441b", "#fbacf6", "#5577b2", "#c9dd87", "#5a66f9")
 
 plot <-ggplot(class2, 
               aes(x= pile,
@@ -584,7 +594,7 @@ plot <-ggplot(class2,
         axis.text.x = element_text(size = 10, 
                                    face = "bold",
                                    angle = 90,
-                                   hjust = 0.5, 
+                                   hjust = 1, 
                                    vjust= 0.5,
                                    margin = margin(t = 1)),
         axis.title.x = element_text(size= 12,
