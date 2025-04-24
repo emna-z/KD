@@ -32,6 +32,262 @@ The 16S rRNA gene has been a mainstay of sequence-based bacterial analysis for d
 
 ### Relative abundance data
 
+#### Class:
+
+We can also visualize the relative abundance of the most abundant classes.
+
+```{r}
+#| label: Top classes per sample
+#| results: hide
+#| echo: True
+#| warning: false
+
+library("tidyverse")
+library("kableExtra")
+library("readxl")
+library("Hmisc")
+
+
+map <- read_excel("data/Book4.xlsx", 
+                  sheet = "maps") %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID))
+
+
+class <- read_csv2("data/16S_Abundance_class.csv") %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+  dplyr::mutate_if(is.character, as.factor) %>% 
+  tidyr::pivot_longer(!Sample_ID, 
+               names_to = "bacteria_class", 
+               values_to = "RA_bacteria") %>% 
+  dplyr::left_join(y = map, by = "Sample_ID" ) %>% 
+  dplyr::arrange(desc(RA_bacteria)) %>% 
+  dplyr::filter(!is.na(pile))
+  # drop_na() %>%
+  # dplyr::mutate(pile = fct_relevel(pile, c("T1", "T4", "T6", "T7", "T8", "T9","T10", "T11")))
+
+classes_to_keep <- unique((class %>% filter(RA_bacteria>5))$bacteria_class)
+
+class2 <- class %>%
+  dplyr::mutate(bacteria_class, 
+         bacteria_class = if_else(bacteria_class %nin% classes_to_keep, 
+                                  str_c("Others <5%"), 
+                                  bacteria_class)) %>%
+  dplyr::mutate_if(is.character, as.factor) %>% 
+  distinct() 
+
+# the multiple copies of classes that are now labelled "Others <5%" produce a distorted effect when plotting
+# to avoid that we'll sum the RA of all "Others <5%" for each condition and replace the multiple 
+# entries by a single one
+
+c_sum <- class2 %>% 
+  filter(!is.na(pile)) %>% 
+  filter(bacteria_class %in% "Others <5%") %>%
+  group_by(Sample_ID) %>%
+  dplyr::mutate(RA_bacteria= sum(RA_bacteria)) %>%
+  distinct() 
+
+class2 <- class2 %>% 
+  filter(!is.na(pile)) %>% 
+  filter(bacteria_class %nin% "Others <5%") %>%
+  bind_rows(c_sum) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, c("T4", "T6", "T7","T1","T9",
+                                           "T8", "T10", "T11")))
+```
+
+There are 13 classes with relative abundances \>5% summarized in the table below.
+
+```{r}
+#| label: table top classes bacteria
+#| warning: false
+#| echo: True
+
+kbl(class2 %>% 
+      dplyr::mutate(
+        RA_bacteria = round(RA_bacteria, digits = 1)
+        )
+    ) %>%
+  kable_paper() %>% 
+  scroll_box(width = "100%", height = "300px")
+```
+
+```{r}
+#| label: barplot classes
+#| echo: True
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+
+library("scales")
+library("RColorBrewer")
+library("ggtext")
+library("glue")
+library("ggpubr")
+library("ggh4x")
+
+ct <- c( "#7ce5e6", "#84eb86", "#3e2690","#399283",  "#173d61", "#b4b7d4", "#71114b", "#59a20c", "#dd3dca", "#18441b", "#fbacf6", "#5577b2", "#c9dd87", "#5a66f9")
+
+plot <-ggplot(class2, 
+              aes(x= pile,
+                  y= RA_bacteria,
+                  group = Sample_ID,
+                  fill=fct_reorder(bacteria_class, RA_bacteria)))+
+  geom_bar(stat="identity", 
+           position="stack") +
+  scale_fill_manual(values= rev(ct))+
+  
+  # scale_y_continuous(labels=percent, expand = c(0,0))+
+  theme_minimal()+
+  labs(fill = "Class Bacteria")+
+  ylab("Relative Abundance (%)")+
+  facet_grid2 (~time_months,
+               scales="free_x",
+               space = "free_x")+
+  theme(strip.text.x = element_text(size = 12, 
+                                    face="bold", 
+                                    angle = 90, 
+                                    vjust = 0.5,
+                                    hjust = 0),
+        strip.text.y = element_text(size = 10, 
+                                    face="bold", 
+                                    angle = 0),
+        legend.title = element_text(size = 12, 
+                                    face = "bold"), 
+        legend.text = element_text(size = 10, 
+                                   face = "bold"),
+        axis.title.y = element_text(size= 12,
+                                    face = "bold"),
+        axis.text.y = element_text(size = 10, 
+                                   face = "bold"),
+        axis.text.x = element_text(size = 10, 
+                                   face = "bold",
+                                   angle = 90,
+                                   hjust = 1, 
+                                   vjust= 0.5,
+                                   margin = margin(t = 1)),
+        axis.title.x = element_text(size= 12,
+                                    face = "bold",
+                                    margin = 
+                                      margin(t = 8)),
+        axis.ticks.y = element_line(colour = "grey30"),
+        panel.grid.major = element_line(colour = NA),
+        panel.grid.minor = element_line(colour = NA))
+
+
+plot
+
+```
+
+It seems as if the sum of classes doesn't add up to 100 (after checking their table, yes it doesn't). I am assuming this is because they delete unassigned ASVs/OTUs on each taxonomic rank.
+
+#### Families at month 6
+
+```{r}
+#| label: table fam month 6
+#| echo: True
+#| warning: false
+#| results: false
+
+fam <- 
+readxl::read_xlsx("./data/Klasmann_Deilmann_no2_dashboard_template_v06.xlsx",
+                  sheet = "16S_Abundance_Family") %>% 
+  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+  pivot_longer(!Sample_ID, 
+               names_to = "bacteria_fam", 
+               values_to = "RA_bacteria") %>% 
+  dplyr::left_join(y = map, by = "Sample_ID" ) %>% 
+  arrange(desc(RA_bacteria)) %>% 
+  filter(time_months %in% c("6M")) %>% 
+  mutate (bacteria_fam=str_remove(bacteria_fam, "f__"))
+  
+
+fam_to_keep <- unique((fam %>% filter(RA_bacteria>3))$bacteria_fam)
+
+fam2 <- fam %>%
+  dplyr::mutate(bacteria_fam, 
+         bacteria_fam = if_else(bacteria_fam %nin% fam_to_keep, 
+                                  str_c("Others <3%"), 
+                                  bacteria_fam)) %>%
+  dplyr::mutate_if(is.character, as.factor)  
+
+
+f_sum <- fam2 %>% 
+  filter(bacteria_fam %in% "Others <3%") %>%
+  group_by(Sample_ID) %>%
+  dplyr::mutate(RA_bacteria= sum(RA_bacteria)) %>%
+  distinct() 
+
+fam2 <- fam2 %>% 
+  filter(bacteria_fam %nin% "Others <3%") %>%
+  bind_rows(f_sum) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, c("T4", "T6", "T7","T1","T9",
+                                           "T8", "T10", "T11")))
+
+```
+
+```{r}
+#| label: barplot fam month 6
+#| echo: True
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+  
+library("scales")
+library("RColorBrewer")
+library("ggtext")
+library("glue")
+library("ggpubr")
+library("ggh4x")
+
+plot <-ggplot(fam2, 
+              aes(x= pile,
+                  y= RA_bacteria,
+                  group = Sample_ID,
+                  fill=fct_reorder(bacteria_fam, RA_bacteria)))+
+  geom_bar(stat="identity", 
+           position="stack") +
+  scale_fill_manual(values= rev(ct))+
+  
+  # scale_y_continuous(limits = c(0,80))+
+  theme_minimal()+
+  labs(fill = "Family Bacteria")+
+  ylab("Relative Abundance (%)")+
+  xlab("")+
+  # facet_grid2 (~time_months,
+  #              scales="free_x",
+  #              space = "free_x")+
+  theme(legend.title = element_text(size = 12, 
+                                    face = "bold"), 
+        legend.text = element_text(size = 10, 
+                                   face = "bold"),
+        axis.title.y = element_text(size= 12,
+                                    face = "bold"),
+        axis.text.y = element_text(size = 10, 
+                                   face = "bold"),
+        axis.text.x = element_text(size = 10, 
+                                   face = "bold",
+                                   angle = 90,
+                                   hjust = 1, 
+                                   vjust= 0.5,
+                                   margin = margin(t = 1)),
+        axis.title.x = element_text(size= 12,
+                                    face = "bold",
+                                    margin = margin(t = 8)),
+        panel.grid.major = element_line(colour = NA),
+        panel.grid.minor = element_line(colour = NA),
+        axis.ticks.y = element_line(colour = "grey30"))
+
+
+plot
+
+```
+
 #### Species:
 
 I am assuming that relative abundances are expressed in percentages per Sample-ID and per sequenced region (here 16S).
@@ -47,14 +303,12 @@ library("readxl")
 library("Hmisc")
 library("tidyverse")
 
-map <- read_excel("data/Book4.xlsx", 
-                  sheet = "maps") %>% 
-  dplyr::mutate(Sample_ID = as.factor(Sample_ID))
+
 
 species <- read_csv2("data/16S_Abundance_Species.csv") %>% 
   dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
   pivot_longer(!Sample_ID, names_to = "bacteria_species", values_to = "RA_bacteria") %>% 
-  left_join(y = map, by = "Sample_ID" ) %>% 
+  dplyr::left_join(y = map, by = "Sample_ID" ) %>% 
   dplyr::mutate_if(is.character,as.factor) %>% 
   arrange(desc(RA_bacteria))
 
@@ -65,7 +319,7 @@ species <- read_csv2("data/16S_Abundance_Species.csv") %>%
 
 ```{r}
 #| warning: false
-#| echo: false
+#| echo: True
 #| label: table species
 #| results: false
 kbl(species[1:300,]) %>%
@@ -105,11 +359,11 @@ top5 <- species %>%
   arrange(desc(RA_bacteria)) 
 ```
 
-There are 41 different species that across the top 5 identified species per sample. The median relative abundance is \~0.8 %. When eliminating NA values, we're left with 35 species.
+There are 30 unique identified species forming the top 5 species in the T4, T6 and T7 time series.
 
 ```{r}
 #| warning: false
-#| echo: false
+#| echo: True
 #| label: table top 5 species
 kbl(top5) %>%
   kable_paper() %>%
@@ -119,7 +373,7 @@ kbl(top5) %>%
 
 ```{r }
 #| label: heatmap species
-#| echo: false
+#| echo: True
 #| warning: false
 #| out-height: 100%
 #| out-width: 100%
@@ -198,11 +452,11 @@ p
 
 ```
 
-The following plot shows the same information but in a way that might make it easier to decipher diffrences between time points whilst the previous plot makes it easier to
+The following plot shows the same information but in a way that might make it easier to decipher differences between time points whilst the previous plot makes groups samples by pile.
 
 ```{r}
 #| label: heatmap species2
-#| echo: false
+#| echo: True
 #| warning: false
 #| results: false
 #| output: True
@@ -316,7 +570,7 @@ median(top10$RA_bacteria)
 
 ```{r}
 #| label: heatmap species month 6
-#| echo: false
+#| echo: True
 #| warning: false
 #| results: false
 #| output: True
@@ -392,10 +646,10 @@ p
 ##### New production samples:
 
 ```{r}
-#| label: Top 10 identified bacteria species in T1 & T9
+#| label: Top 10 identified bacteria species in T1 & T9 -soilytix
 #| results: hide
 #| warning: false
-#| echo: false
+#| echo: True
 
 top10 <- species %>% 
   group_by(Sample_ID) %>% 
@@ -418,8 +672,8 @@ top10 <- species %>%
 ```
 
 ```{r}
-#| label: barplot species T1 & T9
-#| echo: false
+#| label: barplot species T1 & T9 - soilytix
+#| echo: True
 #| warning: false
 #| results: false
 #| output: True
@@ -437,7 +691,7 @@ plot <-ggplot(top10,
   scale_fill_manual("Sample",values= c( "#8a1c12", "#53c6ef","#48bf8e"))+
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()+
-  labs(title = "Top 10 bacterial species in pile 1 and pile 9")+
+  labs(title = "Top 10 bacterial species in pile 1 and pile 9 - soilytex")+
   ylab("Relative Abundance (%)")+
   xlab("bacteria species")+
   theme(plot.title.position = "plot",
@@ -463,93 +717,55 @@ plot
 ```
 
 ```{r}
-#| label: ordination species
-#| echo: false
-#| warning: false
-#| results: false
-#| output: True
-#| out-height: 100%
-#| out-width: 100%
-#| dev: svg
-
- species <- dplyr::mutate(species,
-                          abundance = round(RA_bacteria*Richness_16s))
- 
- s_tab <- species %>% 
-   select(bacteria_species, Sample_ID, abundance) %>% 
-   pivot_wider(names_from = Sample_ID,
-               values_from = abundance)
-
-```
-
-#### Class:
-
-We can also visualize the relative abundance of the most abundant classes.
-
-```{r}
-#| label: Top classes per sample
+#| label: Top 10 identified bacteria species in T1 & T9 and functions - me
 #| results: hide
 #| warning: false
+#| echo: True
 
-library("Hmisc")
+source("phyloseqing.R")
+source("functions.R")
+source("splitranks.R")
 
-class <- read_csv2("data/16S_Abundance_class.csv") %>% 
-  dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
+devtools::unload("mia")
+
+
+top10 <- Species %>% 
+  group_by(Sample_ID) %>% 
+  filter(pile %in% c("T1", "T9")) %>%
+  filter(Species %nin% c("unassigned")) %>% 
+  slice_max(order_by = Species_rel_abund_Sample, n = 10) %>% 
+  ungroup() %>% 
+  arrange(desc(Species_rel_abund_Sample)) %>% 
   dplyr::mutate_if(is.character, as.factor) %>% 
-  pivot_longer(!Sample_ID, 
-               names_to = "bacteria_class", 
-               values_to = "RA_bacteria") %>% 
-  left_join(y = map, by = "Sample_ID" ) %>% 
-  arrange(desc(RA_bacteria)) %>% 
-  filter(!is.na(pile))
-  # drop_na() %>%
-  # dplyr::mutate(pile = fct_relevel(pile, c("T1", "T4", "T6", "T7", "T8", "T9","T10", "T11")))
+  dplyr::mutate(pile = fct_relevel(pile, c("T1","T9"))) %>%
+  dplyr::mutate(Sample_ID =as.factor(Sample_ID)) %>% 
+  distinct()
 
-classes_to_keep <- unique((class %>% filter(RA_bacteria>5))$bacteria_class)
+top10_bact <- unique(top10$Species)
+length(top10_bact)
 
-class2 <- class %>%
-  dplyr::mutate(bacteria_class, 
-         bacteria_class = if_else(bacteria_class %nin% classes_to_keep, 
-                                  str_c("Others <5%"), 
-                                  bacteria_class)) %>%
-  dplyr::mutate_if(is.character, as.factor) %>% 
-  distinct() 
-
-# the multiple copies of classes that are now labelled "Others <5%" produce a distorted effect when plotting
-# to avoid that we'll sum the RA of all "Others <5%" for each condition and replace the multiple 
-# entries by a single one
-
-c_sum <- class2 %>% 
-  filter(!is.na(pile)) %>% 
-  filter(bacteria_class %in% "Others <5%") %>%
-  group_by(Sample_ID) %>%
-  dplyr::mutate(RA_bacteria= sum(RA_bacteria)) %>%
-  distinct() 
-
-class2 <- class2 %>% 
-  filter(!is.na(pile)) %>% 
-  filter(bacteria_class %nin% "Others <5%") %>%
-  bind_rows(c_sum)
-```
-
-There are 13 classes with relative abundances \>5% summarized in the table below.
-
-```{r}
-#| warning: false
-#| echo: false
-#| label: table top classes bacteria
-kbl(class2 %>% 
-      dplyr::mutate(
-        RA_bacteria = round(RA_bacteria, digits = 1)
-        )
-    ) %>%
-  kable_paper() %>% 
-  scroll_box(width = "100%", height = "300px")
+top10 <- t3 %>% 
+  filter(Species %in% top10_bact) %>% 
+  filter(pile %in% c("T1", "T9")) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, c("T1","T9"))) %>% 
+  dplyr::mutate(pile = fct_relevel(pile, c("T1","T9")))%>%
+  filter(Species_rel_abund_Sample>0) %>% 
+  arrange(desc(Species_rel_abund_Sample))  %>% 
+  dplyr::mutate(Sample_ID =as.factor(Sample_ID)) %>% 
+  dplyr::mutate(Species_rel_abund_Sample = Species_rel_abund_Sample*100) %>% 
+  distinct() %>% 
+  select(-ASV) %>% 
+  distinct() %>% 
+  unite("bact_f", Species, Functions, sep = " : ", remove = F) %>%
+  mutate(Functions = str_replace_all(Functions, ", ", "\n"))
+  
+  
+  
 ```
 
 ```{r}
-#| label: barplot classes
-#| echo: false
+#| label: barplot species T1 & T9 - me
+#| echo: True
 #| warning: false
 #| results: false
 #| output: True
@@ -557,59 +773,122 @@ kbl(class2 %>%
 #| out-width: 100%
 #| dev: svg
 
-ct <- c( "#7ce5e6", "#84eb86", "#3e2690","#399283",  "#173d61", "#b4b7d4", "#71114b", "#59a20c", "#dd3dca", "#18441b", "#fbacf6", "#5577b2", "#c9dd87", "#5a66f9")
 
-plot <-ggplot(class2, 
-              aes(x= pile,
-                  y= RA_bacteria,
-                  group = Sample_ID,
-                  fill=fct_reorder(bacteria_class, RA_bacteria)))+
+plot <-ggplot(top10, 
+              aes(x= fct_reorder(Species, Species_rel_abund_Sample),
+                  y= Species_rel_abund_Sample,
+                  fill= Sample_ID))+
   geom_bar(stat="identity", 
-           position="stack") +
-  scale_fill_manual(values= rev(ct))+
-  
-  # scale_y_continuous(labels=percent, expand = c(0,0))+
-  theme_minimal()+
-  labs(fill = "Class Bacteria")+
+           position= "dodge") +
+  scale_fill_manual("Sample",values= c( "#8a1c12", "#53c6ef","#48bf8e"))+
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()+
+  labs(title = "Top 10 bacterial species in pile 1 and pile 9 - me")+
   ylab("Relative Abundance (%)")+
-  facet_grid2 (~time_months,
-               scales="free_x",
-               space = "free_x")+
-  theme(strip.text.x = element_text(size = 12, 
-                                    face="bold", 
-                                    angle = 90, 
-                                    vjust = 0.5,
-                                    hjust = 0),
-        strip.text.y = element_text(size = 10, 
-                                    face="bold", 
-                                    angle = 0),
-        legend.title = element_text(size = 14, 
-                                    face = "bold"), 
-        legend.text = element_text(size = 12, 
-                                   face = "bold"),
+  xlab("bacteria species")+
+  theme(plot.title.position = "plot",
+        legend.position = c(0.8, 0.2),
+        legend.title = element_text(face = "bold"),
         axis.title.y = element_text(size= 12,
                                     face = "bold"),
         axis.text.y = element_text(size = 10, 
-                                   face = "bold"),
-        axis.text.x = element_text(size = 10, 
+                                   face = "bold.italic"),
+        axis.text.x = element_text(size = 10,
                                    face = "bold",
-                                   angle = 90,
-                                   hjust = 1, 
+                                   hjust = 0.5, 
                                    vjust= 0.5,
                                    margin = margin(t = 1)),
         axis.title.x = element_text(size= 12,
                                     face = "bold",
-                                    margin = 
                                       margin(t = 8)),
         panel.grid.major = element_line(colour = NA),
-        panel.grid.minor = element_line(colour = NA))
-
+        panel.grid.minor = element_line(colour = NA))+ 
+  coord_flip()
 
 plot
-
 ```
 
-It seems as if the sum of classes doesn't add up to 100 (after checking their table, yes it doesn't). I am assuming this is because they delete unassigned ASVs/OTUs on each taxonomic rank.
+```{r}
+#| label: bubble plot species T1 & T9 - me
+#| echo: True
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+
+plot <-ggplot(top10, 
+              aes(x= 
+                    interaction(
+                      fct_reorder(Species, Species_rel_abund_Sample),
+                      Functions),
+                  y = pile,
+                  size = Species_rel_abund_Sample,
+                  color= Sample_ID))+
+  geom_count(alpha=0.5, position = "dodge") +
+  scale_size( name="relative\nabundance (%)")+
+  scale_x_discrete(guide=guide_axis_nested(delim="."))+
+  scale_color_manual("Sample",values= c( "#8a1c12", "#53c6ef","#48bf8e"))+
+  # scale_y_continuous(expand = c(0,0)) +
+  theme_classic()+
+  # labs(title = "Top 10 bacterial species in pile 1 and pile 9 - me")+
+  # ylab("Relative Abundance (%)")+
+  xlab("")+
+  theme(plot.title.position = "plot",
+        legend.position = "right",
+        legend.title = element_text(face = "bold"),
+        axis.title.y = element_text(size= 12,
+                                    face = "bold"),
+        axis.text.y = element_text(size = 10, 
+                                   face = "bold.italic"),
+        axis.text.x = element_text(size = 10,
+                                   face = "bold",
+                                   hjust = 0.5, 
+                                   vjust= 0.5,
+                                   margin = margin(t = 1)),
+        axis.title.x = element_text(size= 12,
+                                    face = "bold",
+                                      margin(t = 8)),
+        panel.grid.major = element_line(colour = NA),
+        panel.grid.minor = element_line(colour = NA),
+        aspect.ratio = 10/1
+        )+ 
+  coord_flip()
+
+# plot
+```
+
+the plot above should be open separately (too big to fit page).\
+![](species_functions_bubble.svg)
+
+##### ordination species after 6 months:
+
+```{r}
+#| label: ordination species at month 6
+#| echo: True
+#| warning: false
+#| results: false
+#| output: True
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+ species6 <- dplyr::mutate(species,
+                          abundance = round(RA_bacteria*Richness_16s)) %>% 
+   filter(time_months %in% c("6M"))
+ 
+ s_tab <- species6 %>% 
+   select(bacteria_species, pile, abundance) %>% 
+   pivot_wider(names_from = bacteria_species,
+               values_from = abundance) %>% 
+   column_to_rownames(var = "pile")
+ 
+
+library(vegan)
+library(ape)
+```
 
 ### Alpha diversity indexes bacteria
 
@@ -626,10 +905,11 @@ The higher the value of H, the higher the diversity of species in a particular c
 #| results: hide
 #| warning: false
 
+devtools::unload("mia")
 
-alpha_div <- read.csv2("data/alpha_div.csv") %>% 
+
+alpha_div <- read.csv("data/functional data/alpha_div_indexes_microbiome_package.csv") %>% 
   dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
-  left_join(y = map, by = "Sample_ID" ) %>% 
   dplyr::mutate_if(is.character, as.factor) %>% 
   filter(!is.na(pile)) %>% 
   dplyr::mutate(pile = fct_relevel(pile, 
@@ -652,10 +932,11 @@ high <- function(x){mean(x)+sd(x)}
 ```{r}
 #| label: Shannon diversity index 
 #| results: hide
-#| echo: false
+#| echo: True
 #| output: false
 #| warning: false
 #| dev: svg
+
 library(ggrepel)
 
 p_shannon1 <- ggplot(data = alpha_div , 
@@ -663,7 +944,7 @@ p_shannon1 <- ggplot(data = alpha_div ,
                          group = pile,
                          color = pile,
                          label = Sample_ID,
-                         y= Shannon)) +
+                         y= diversity_shannon)) +
   
   geom_point(size= 2, key_glyph = "rect")+
   geom_text(check_overlap = T, 
@@ -720,7 +1001,7 @@ p_shannon2 <- ggplot(data = alpha_div ,
                     aes (x = time_months,
                          group = time_months,
                          label = Sample_ID,
-                         y= Shannon)) +
+                         y= diversity_shannon)) +
   
   geom_point(size= 2, key_glyph = "rect")+
   geom_text_repel() +
@@ -773,38 +1054,37 @@ p_shannon2
 ```
 
 ```{r}
-
-#| label: Shannon diversity index tables 
-#| results: hide
-#| echo: false
-#| output: true
-#| warning: false
-#| out-height: 100%
-#| out-width: 100%
-#| dev: svg
-
-
-# ggpubr::compare_means(data = alpha_div,
-#                       formula = Shannon ~ time_months,
-#                       method = "kruskal.test",
-#                       p.adjust.method = "BH",
-#                       paired = T)
-
-pl <- 
-  ggpubr::ggarrange(p_shannon1,
-                  p_shannon2,
-                  common.legend = F,
-                  legend = "none",
-                  ncol = 2,
-                  labels = c("A)", "B)")
-                  )
-cap <- expression("Shannon diversity index values. \nThe samples are grouped by time the X marks the mean. \nThe line represents the standard deviation. \nIn A) a pairwise comparison via Wilcoxon test is represented. \nIn B) only a global Kruskall-Wallis test is displayed. \nns = not significant")
-
-annotate_figure(
-        annotate_figure(pl,
-                bottom =text_grob(paste(cap)),
-        )
-)
+#| label: Shannon diversity index tables
+# #| results: hide
+# #| echo: True
+# #| output: true
+# #| warning: false
+# #| out-height: 100%
+# #| out-width: 100%
+# #| dev: svg
+# 
+# 
+# # ggpubr::compare_means(data = alpha_div,
+# #                       formula = Shannon ~ time_months,
+# #                       method = "kruskal.test",
+# #                       p.adjust.method = "BH",
+# #                       paired = T)
+# 
+# pl <- 
+#   ggpubr::ggarrange(p_shannon1,
+#                   p_shannon2,
+#                   common.legend = F,
+#                   legend = "none",
+#                   ncol = 2,
+#                   labels = c("A)", "B)")
+#                   )
+# cap <- expression("Shannon diversity index values. \nThe samples are grouped by time the X marks the mean. \nThe line represents the standard deviation.")
+# 
+# annotate_figure(
+#         annotate_figure(pl,
+#                 bottom =text_grob(paste(cap)),
+#         )
+# )
 ```
 
 ### Beta diversity
@@ -816,7 +1096,7 @@ So, if I just plot what's in the file that's what I would get.
 ```{r}
 #| label: beta div
 #| results: hide
-#| echo: false
+#| echo: True
 #| output: True
 #| warning: false
 #| out-width: 80%
@@ -824,10 +1104,16 @@ So, if I just plot what's in the file that's what I would get.
 #| dev: svg
 
 library(ggrepel)
+map <- read.csv("./data/functional data/functional data/mapfile.csv", 
+                            row.names = 1, 
+                            fileEncoding= "windows-1252",
+                            na.strings = c("NA", "", " ")) %>% 
+    dplyr::mutate(Sample_ID = as.factor(Sample_ID))  
+
 
 beta <- read_csv2("data/beta_div_16s.csv") %>% 
   dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
-  left_join(y = map, by = "Sample_ID" ) %>% 
+  dplyr::left_join(y = map, by = "Sample_ID" ) %>% 
   dplyr::mutate_if(is.character, as.factor) %>% 
   filter(!is.na(pile)) %>% 
   dplyr::mutate(pile = fct_relevel(pile, 
@@ -877,12 +1163,3 @@ b
 ```
 
 Usually axis 1 / axis x or PCo1 is the dimension that explains the most variance in the dataset even if it is unknown exactly here. What we can see mostly here is that the microbial community is discriminated by the variable time mostly. on that axis from right to left, one can follow a progression mainly in the 3 first months. after that, the influence of time seems to diminish. I don't have enough knowledge about the samples to be able to guess what might be the variables behind the scatter of the samples.
-
-### Possible Functions
-
-```{r}
-#| label: function table
-#| echo: false
-#| results: hide
-#| warning: false
-```
