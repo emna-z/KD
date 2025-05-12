@@ -757,10 +757,15 @@ top10 <- t3 %>%
   select(-ASV) %>% 
   distinct() %>% 
   unite("bact_f", Species, Functions, sep = " : ", remove = F) %>%
-  mutate(Functions = str_replace_all(Functions, ", ", "\n"))
   
-  
-  
+  # mutate(Functions = str_replace_all(Functions, "symbionts, ", "symbionts\n")) %>%
+  mutate(Functions = str_replace_all(Functions, "_", " ")) %>%
+  mutate(Functions = str_squish(Functions)) %>% 
+  mutate(Functions = str_wrap(Functions, width = 50), "\n") %>%
+
+  # mutate(Functions = str_replace_all(Functions, "2", "\u2082")) %>%
+  dplyr::mutate_if(is.character, as.factor)
+
 ```
 
 ```{r}
@@ -814,56 +819,80 @@ plot
 #| warning: false
 #| results: false
 #| output: True
+#| fig-width: 8.5
+#| fig-height: 13
 #| out-height: 100%
 #| out-width: 100%
 #| dev: svg
 
+library("ggh4x")
 
 plot <-ggplot(top10, 
-              aes(x= 
-                    interaction(
-                      fct_reorder(Species, Species_rel_abund_Sample),
-                      Functions),
-                  y = pile,
+              aes(y= fct_reorder(Species, Species_rel_abund_Sample),
+                  x = pile, 
                   size = Species_rel_abund_Sample,
-                  color= Sample_ID))+
+                  color= Sample_ID
+                  )
+              )+
+
   geom_count(alpha=0.5, position = "dodge") +
-  scale_size( name="relative\nabundance (%)")+
-  scale_x_discrete(guide=guide_axis_nested(delim="."))+
+  scale_size( name="relative abundance (%)")+
+    guides(y="axis_nested") +
+  facet_nested( top10$Functions, 
+                drop = T,
+                scales = "free_y", 
+                space = "free_y",
+                axes = 'margins',
+                independent = "y") +
+  # scale_y_discrete(guide=guide_axis_nested(delim="."))+
   scale_color_manual("Sample",values= c( "#8a1c12", "#53c6ef","#48bf8e"))+
   # scale_y_continuous(expand = c(0,0)) +
   theme_classic()+
   # labs(title = "Top 10 bacterial species in pile 1 and pile 9 - me")+
   # ylab("Relative Abundance (%)")+
+  ylab("")+
   xlab("")+
   theme(plot.title.position = "plot",
-        legend.position = "right",
-        legend.title = element_text(face = "bold"),
-        axis.title.y = element_text(size= 12,
-                                    face = "bold"),
-        axis.text.y = element_text(size = 10, 
+        legend.position = "top",
+        legend.title = element_text(face = "bold", size = 11),
+        legend.text = element_text(size = 11),
+        axis.text.y = element_text(size = 13, 
+                                   hjust = 0.95, 
+                                   vjust= 0.5,
                                    face = "bold.italic"),
-        axis.text.x = element_text(size = 10,
+        axis.text.x = element_text(size = 13,
                                    face = "bold",
                                    hjust = 0.5, 
                                    vjust= 0.5,
                                    margin = margin(t = 1)),
-        axis.title.x = element_text(size= 12,
-                                    face = "bold",
-                                      margin(t = 8)),
-        panel.grid.major = element_line(colour = NA),
+        panel.grid.major.y= element_line(color = "grey75", 
+                                        linetype = "dotted"),
         panel.grid.minor = element_line(colour = NA),
-        aspect.ratio = 10/1
-        )+ 
-  coord_flip()
+        strip.background.y = element_part_rect(side = "l",
+                                               linetype = 1, 
+                                               colour = "darkblue",
+                                               linewidth = 3),
+        strip.text.y = element_text(angle = 0, 
+                                          face = "bold",
+                                          vjust = 0.5, 
+                                          hjust = 0,
+                                          size = 12,
+                                          margin = 
+                                            margin(0.15,0.15,0.15,0.15, "cm")
+                                          )        )
+print(plot)
 
-# plot
 ```
 
-the plot above should be open separately (too big to fit page).\
-![](species_functions_bubble.svg)
+For the species that do not have a matching putative function, here's the results of some research:
 
-##### ordination species after 6 months:
+-   The Genus ***Ketobacter*** has only two cultivated strain *K. alkanivorans* (oil degrader) and *K. nezhaii*
+-   ***Pir4 lineage*** is related to the *Pirellula* genus. It is dominated by environmental sequences retrieved from a variety of low-oxygen habitats (in line with compost conditions) usually chemoheterotrophs.
+-   ***Pirellula*** has only two cultivated strains one aquatic *Pirellula marina*
+-   ***Proteiniphilum*** has 3 cultivated strains all isolated from anaerobic environments. Metabolically they are anaerobic chemoheterotrphs (proteolyse, fermentation) and one strain produces acetate.
+-   ***Steroidobacter*** has 7 cultivated species aerobic chemoheteroptrophs.
+-   ***Chryseolinea*** also aerobic chemoheterotrophs. Some of its species were reclassified to genus *Pseudochryseolinea.*
+-   ***SM1A02*** has no cultured species but reported as nitrifiers in ([Ma et al. 2024](https://www.sciencedirect.com/science/article/pii/S2095809923004861))
 
 ```{r}
 #| label: ordination species at month 6
@@ -900,8 +929,16 @@ Denoted as H, this index is calculated as $H = \sum{p_i}*\ln({p_i})$ where ${p_i
 
 The higher the value of H, the higher the diversity of species in a particular community. The lower the value of H, the lower the diversity. A value of H = 0 indicates a community that only has one species.
 
+The original Simpson diversity index is defined as $D = \sum^R_{i=1} (\dfrac {n_i(n_i-1)}{N(N-1)})$
+
+The value of Simpson’s D ranges from 0 to 1, with 0 representing infinite diversity and 1 representing no diversity, so the larger the value of $D$, the lower the diversity. For this reason, Simpson’s index is usually expressed as its inverse $(1/D)$ or its compliment $(1-D)$ which is also known as the Gini-Simpson index.
+
+The evenness of a community can be represented by Pielou's evenness index $J=\frac{H}{H_{\max }}$
+
+The value of J ranges from 0 to 1. Higher values indicate higher levels of evenness. At maximum evenness, $J$ = 1.
+
 ```{r}
-#| label: alpha div prep 
+#| label: alpha div prep & tables
 #| results: hide
 #| warning: false
 
@@ -911,11 +948,11 @@ devtools::unload("mia")
 alpha_div <- read.csv("data/functional data/alpha_div_indexes_microbiome_package.csv") %>% 
   dplyr::mutate(Sample_ID = as.factor(Sample_ID)) %>% 
   dplyr::mutate_if(is.character, as.factor) %>% 
-  filter(!is.na(pile)) %>% 
-  dplyr::mutate(pile = fct_relevel(pile, 
+  filter(!is.na(pile)) %>%
+  filter(pile %nin% "NA") %>% 
+    dplyr::mutate(pile = fct_relevel(pile, 
                             c( "T4", "T6","T7", "T1",
                                "T9","T8","T10", "T11")))
-
 
 combo <- combn(levels(alpha_div$time_months), 2)
 
@@ -930,7 +967,7 @@ high <- function(x){mean(x)+sd(x)}
 ```
 
 ```{r}
-#| label: Shannon diversity index 
+#| label: diversity indexes plots prep 
 #| results: hide
 #| echo: True
 #| output: false
@@ -938,33 +975,35 @@ high <- function(x){mean(x)+sd(x)}
 #| dev: svg
 
 library(ggrepel)
+coll <- c("#dac925", "#93311c", "#84bc04", "#554bca", "#fca552", "purple3", "#3dd188", "#c41c8d")
+
 
 p_shannon1 <- ggplot(data = alpha_div , 
-                    aes (x = pile,
-                         group = pile,
+                    aes (x = time_months,
+                         group = time_months,
                          color = pile,
                          label = Sample_ID,
-                         y= diversity_shannon)) +
+                         y= diversity_gini_simpson)) +
   
-  geom_point(size= 2, key_glyph = "rect")+
-  geom_text(check_overlap = T, 
-            size = 4, 
-            hjust = 0, 
-            nudge_x = 0.2) +
-  stat_summary(fun="mean", 
-               fun.min = low, 
-               fun.max = high ,
-               size=1, 
-               shape= 4)+
-  
-   scale_color_manual(values = c("#dac925", "#93311c", "#84bc04", "#554bca", "#fca552", "purple3", "#3dd188", "#c41c8d"),
+  geom_point(size= 2, key_glyph = draw_key_point)+
+  geom_text_repel(show.legend = F)+
+  # geom_text(check_overlap = T, 
+  #           size = 4, 
+  #           hjust = 0, 
+  #           nudge_x = 0.2) +
+  # stat_summary(fun="mean", 
+  #              fun.min = low, 
+  #              fun.max = high ,
+  #              size=1, 
+  #              shape= 4)+
+  scale_color_manual(values =coll,
                      name = "pile")+
   
   
   # facet_wrap(~location)+
   
   xlab("")+
-  ylab("Shannon diversity index")+
+  ylab("Gini Simpson diversity index")+
   theme_classic()+
   theme(axis.title.y = element_text(size = 12, 
                                     margin =margin(t=0,r=8,b=0,l=0)),
@@ -977,42 +1016,39 @@ p_shannon1 <- ggplot(data = alpha_div ,
                                    hjust = 0.5),
         axis.text.y = element_text(size = 10, 
                                    colour = "black"),
-        legend.text  = element_text(size = 11),
+        legend.text  = element_text(size = 9.5),
         legend.title = element_text(size = 11, 
                                     face = "bold"),
         strip.background = element_blank(),
         strip.text = element_text(size = 12, 
-                                  face = "bold"))+
+                                  face = "bold"),
+        legend.position = "none")
   # stat_compare_means(comparisons = my_comparisons,
   #                    method = "wilcox.test",
   #                    aes(label = after_stat(p.signif))) # Add pairwise comparisons p-value
-  stat_compare_means(method = "kruskal.test",
-                     label.y = 11 , label.x = 2) +
-  guides(
-  color = guide_legend(
-    label.position = "top",
-    override.aes = list(shape = 20, size = 1)
-  ))
-
+  # stat_compare_means(method = "kruskal.test",
+  #                    label.y = 11 , label.x = 2) +
+  
 # p_shannon1
 
 
 p_shannon2 <- ggplot(data = alpha_div , 
                     aes (x = time_months,
                          group = time_months,
+                         color = pile,
                          label = Sample_ID,
                          y= diversity_shannon)) +
+  scale_color_manual(values = coll,
+                     name = "pile")+
   
-  geom_point(size= 2, key_glyph = "rect")+
-  geom_text_repel() +
-  stat_summary(fun="mean", 
-               fun.min = low, 
-               fun.max = high ,
-               size=1, 
-               shape= 4)+
-  # scale_color_manual(values = c("#72e5ef", "#f1615f", "#913a98", "#4b7359", "#a6e590", "#505b8f", "#c79542"),
-  #                    name = "time")+
-  # 
+  geom_point(size= 2, key_glyph = draw_key_point)+
+  geom_text_repel(show.legend = F) +
+  # stat_summary(fun="mean", 
+  #              fun.min = low, 
+  #              fun.max = high ,
+  #              size=1, 
+  #              shape= 4)+
+  
   
   # facet_wrap(~location)+
   
@@ -1030,54 +1066,105 @@ p_shannon2 <- ggplot(data = alpha_div ,
                                    hjust = 0.5),
         axis.text.y = element_text(size = 10, 
                                    colour = "black"),
-        legend.text  = element_text(size = 11),
+        legend.text  = element_text(size = 9.5),
         legend.title = element_text(size = 11, 
                                     face = "bold"),
         strip.background = element_blank(),
         strip.text = element_text(size = 12, 
-                                  face = "bold"))+
+                                  face = "bold"),
+        legend.position = "none")
   # stat_compare_means(comparisons = my_comparisons,
   #                    method = "wilcox.test",
   #                    aes(label = after_stat(p.signif))) +# Add pairwise comparisons p-value
-  stat_compare_means(method = "kruskal.test" ,
-                     label.x = 2,
-                      ) + 
-  guides(
-  color = guide_legend(
-    label.position = "top",
-    override.aes = list(shape = 20, size = 1)
-  ))
+  # stat_compare_means(method = "kruskal.test" ,
+  #                    label.x = 2,
+  #                     ) + 
+  
 
-p_shannon2
+# p_shannon2
+
+
+p_shannon3 <- ggplot(data = alpha_div , 
+                    aes (x = time_months,
+                         group = time_months,
+                         color = pile,
+                         label = Sample_ID,
+                         y= evenness_pielou)) +
+  
+  geom_point(size= 2, key_glyph = draw_key_point)+
+  geom_text_repel(show.legend = F)+
+  # stat_summary(fun="mean", 
+  #              fun.min = low, 
+  #              fun.max = high ,
+  #              size=1, 
+  #              shape= 4)+
+  
+  scale_color_manual(values = coll,
+                     name = "pile")+
+  
+  # facet_wrap(~location)+
+  
+  xlab("")+
+  ylab("Pielou evenness index")+
+  theme_classic()+
+  theme(axis.title.y = element_text(size = 12, 
+                                    margin =margin(t=0,r=8,b=0,l=0)),
+        axis.title.x = element_text(size = 12,  
+                                    margin =margin(t=8,r=0,b=0,l=0)),
+        axis.text.x = element_text(size = 12, 
+                                   colour = "black",
+                                   angle = 0, 
+                                   vjust = 0.5, 
+                                   hjust = 0.5),
+        axis.text.y = element_text(size = 10, 
+                                   colour = "black"),
+        legend.text  = element_text(size = 9.5),
+        legend.title = element_text(size = 11, 
+                                    face = "bold"),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12, 
+                                  face = "bold"),
+        legend.position = "none")
+  # stat_compare_means(comparisons = my_comparisons,
+  #                    method = "wilcox.test",
+  #                    aes(label = after_stat(p.signif))) +# Add pairwise comparisons p-value
+  # stat_compare_means(method = "kruskal.test" ,
+  #                    label.x = 2,
+  #                     ) + 
+ 
+
+# p_shannon3
 
 #
 ```
 
 ```{r}
-#| label: Shannon diversity index tables
-# #| results: hide
-# #| echo: True
-# #| output: true
-# #| warning: false
-# #| out-height: 100%
-# #| out-width: 100%
-# #| dev: svg
-# 
-# 
-# # ggpubr::compare_means(data = alpha_div,
-# #                       formula = Shannon ~ time_months,
-# #                       method = "kruskal.test",
-# #                       p.adjust.method = "BH",
-# #                       paired = T)
-# 
-# pl <- 
-#   ggpubr::ggarrange(p_shannon1,
-#                   p_shannon2,
-#                   common.legend = F,
-#                   legend = "none",
-#                   ncol = 2,
-#                   labels = c("A)", "B)")
-#                   )
+#| label: alpha diversity indexes plots
+#| results: hide
+#| echo: True
+#| output: true
+#| fig-width: 9
+#| fig-height: 5
+#| warning: false
+#| out-height: 100%
+#| out-width: 100%
+#| dev: svg
+
+
+# ggpubr::compare_means(data = alpha_div,
+#                       formula = Shannon ~ time_months,
+#                       method = "kruskal.test",
+#                       p.adjust.method = "BH",
+#                       paired = T)
+
+pl <-
+  ggpubr::ggarrange(p_shannon1,
+                  p_shannon2,
+                  p_shannon3,
+                  common.legend = T,
+                  ncol = 3,align = "hv",
+                  labels = c("A)", "B)", "C)")
+                  )
 # cap <- expression("Shannon diversity index values. \nThe samples are grouped by time the X marks the mean. \nThe line represents the standard deviation.")
 # 
 # annotate_figure(
@@ -1085,6 +1172,8 @@ p_shannon2
 #                 bottom =text_grob(paste(cap)),
 #         )
 # )
+pl+
+  guides(color = guide_legend(position = "bottom"))
 ```
 
 ### Beta diversity
@@ -1094,13 +1183,16 @@ the values provided are coordinates on two axes without mentioning which data, w
 So, if I just plot what's in the file that's what I would get.
 
 ```{r}
-#| label: beta div
+#| label: beta div - soilytex
 #| results: hide
 #| echo: True
 #| output: True
 #| warning: false
-#| out-width: 80%
-#| out-height: 80%
+#| fig-width: 5
+#| fig-height: 5
+#| fig-align: center
+#| out-width: 60%
+#| out-height: 60%
 #| dev: svg
 
 library(ggrepel)
